@@ -1,0 +1,23 @@
+# Generated media and working files
+Start/To Enhance/*
+Start/Enhanced/*
+
+# Bundled third-party binaries are intentionally not committed.
+# Install/copy FFmpeg and Video2X into Start/tools locally.
+Start/tools/*
+
+# Keep folder structure
+!Start/To Enhance/.gitkeep
+!Start/Enhanced/.gitkeep
+!Start/tools/.gitkeep
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+
+# Windows noise
+Thumbs.db
+desktop.ini
+
