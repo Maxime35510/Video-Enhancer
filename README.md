@@ -30,8 +30,7 @@ It keeps work files, validates every step, and resumes automatically after crash
 ## Project Structure
 
 ```text
-AI enhance videos/
-└── Start/
+Start/
     ├── Start_Enhance_Videos.bat
     ├── To Enhance/
     ├── Enhanced/
@@ -66,7 +65,7 @@ Place your original videos here.
 Example:
 
 ```text
-Start/To Enhance/sunwukong.mp4
+Start/To Enhance/marvel.mp4
 ```
 
 #### `Start/Enhanced/`
@@ -76,8 +75,8 @@ Stores final enhanced videos and per-video work folders.
 Examples:
 
 ```text
-Start/Enhanced/sunwukong_enhanced.mp4
-Start/Enhanced/sunwukong/
+Start/Enhanced/marvel_enhanced.mp4
+Start/Enhanced/marvel/
 ```
 
 #### `Start/tools/`
@@ -177,7 +176,7 @@ sunwukong.mp4
 The script creates:
 
 ```text
-Start/Enhanced/sunwukong/
+Start/Enhanced/marvel/
 ```
 
 Inside that folder:
