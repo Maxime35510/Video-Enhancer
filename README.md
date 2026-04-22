@@ -1,246 +1,449 @@
-# Video Enhancer
+# AI Video Enhancer
 
-Video Enhancer is a Windows batch tool for improving low-resolution videos with
-FFmpeg and Video2X.
+A **Windows-based, resumable video enhancement pipeline** built for long-running jobs on low-end PCs.
 
-It was built for conservative, resumable processing on a low-end Windows PC.
-The goal is not to be the fastest possible pipeline, but to avoid losing work
-when a long upscale job is interrupted.
+This project takes a low-quality video, splits it into smaller segments, upscales each segment with **Video2X + RealESRGAN**, restores the audio, validates the results, and rebuilds everything into one final enhanced video.
 
-## What It Does
+The system is designed with one priority above all else:
 
-The main script is:
+> **Reliability over speed**
 
-```text
-Start/Start_Enhance_Videos.bat
-```
+It keeps work files, validates every step, and resumes automatically after crashes, interruptions, or manual stops.
 
-When launched, it:
+---
 
-1. Scans `Start/To Enhance` for video files.
-2. Lets you choose which video to enhance.
-3. Creates a dedicated work folder for that video inside `Start/Enhanced`.
-4. Splits the video into 5-minute segments.
-5. Upscales each segment with Video2X using RealESRGAN.
-6. Restores the original audio to each enhanced segment.
-7. Validates every enhanced segment before moving on.
-8. Automatically repairs missing or broken segments.
-9. Compiles all valid enhanced segments into one final video.
-10. Validates the final video duration, resolution, audio, and readability.
-11. Keeps the working files so the job can be inspected or resumed later.
+## Features
 
-## Folder Structure
+- **One-click launcher** via a batch file
+- **Automatic video detection** from the input folder
+- **Segment-based processing** for safer long jobs
+- **Upscaling with Video2X + RealESRGAN**
+- **Automatic audio restoration**
+- **Validation and repair system** for segments and final output
+- **Resume support** without restarting the full job
+- **ETA estimation** before processing and during final compilation
+- **Structured logs** for debugging and progress tracking
+- **Optimized for low-end Windows PCs**
+
+---
+
+## Project Structure
 
 ```text
-Start/
-  Start_Enhance_Videos.bat
-  To Enhance/
-  Enhanced/
-  tools/
+AI enhance videos/
+└── Start/
+    ├── Start_Enhance_Videos.bat
+    ├── To Enhance/
+    ├── Enhanced/
+    └── tools/
 ```
 
-### `To Enhance`
+### Folder Overview
 
-Put the original videos you want to improve in this folder.
+#### `Start/Start_Enhance_Videos.bat`
+
+The main launcher and core controller of the project.
+
+This script handles:
+
+- video detection
+- user selection
+- project folder creation
+- time estimation
+- splitting
+- upscaling
+- validation
+- repair
+- audio restoration
+- final compilation
+- final ETA display
+- logging
+
+#### `Start/To Enhance/`
+
+Place your original videos here.
 
 Example:
 
 ```text
-Start/To Enhance/my_video.mp4
+Start/To Enhance/sunwukong.mp4
 ```
 
-### `Enhanced`
+#### `Start/Enhanced/`
 
-The final enhanced videos are saved here.
+Stores final enhanced videos and per-video work folders.
 
-The script also creates one work folder per video inside `Enhanced`. That folder
-contains segments, temporary files, logs, and validation data.
-
-Example after processing `my_video.mp4`:
+Examples:
 
 ```text
-Start/Enhanced/my_video_enhanced.mp4
-Start/Enhanced/my_video/
-  segments/
-  enhanced/
-  temp/
-  logs/
+Start/Enhanced/sunwukong_enhanced.mp4
+Start/Enhanced/sunwukong/
 ```
 
-### `tools`
+#### `Start/tools/`
 
-This folder is expected to contain FFmpeg and Video2X locally:
+Stores required local tools:
 
-```text
-Start/tools/ffmpeg/bin/ffmpeg.exe
-Start/tools/ffmpeg/bin/ffprobe.exe
-Start/tools/video2x/video2x.exe
-```
+- `ffmpeg.exe`
+- `ffprobe.exe`
+- `video2x.exe`
 
-The tools are not committed to Git because they are large third-party binaries.
+> These binaries are required locally but are **not included in the GitHub repository**.
 
-## Output Naming
+---
 
-The final file is always named from the original video name.
+## How It Works
 
-Example:
+### 1. Add a video
 
-```text
-my_video.mp4
-```
-
-becomes:
-
-```text
-my_video_enhanced.mp4
-```
-
-The final output is saved in:
-
-```text
-Start/Enhanced/
-```
-
-## Upscaling Settings
-
-The script uses conservative settings intended for reliability:
-
-```text
-Processor: RealESRGAN
-Scale: 2x
-Model: realesr-animevideov3
-Target final height: 1080p
-Segment length: 300 seconds
-```
-
-The final video is encoded with H.264 using FFmpeg.
-
-## Resume Behavior
-
-The pipeline is designed to survive interruptions.
-
-If the script is stopped, closed, or interrupted, you can run it again. It will:
-
-- reuse valid existing split segments;
-- skip valid enhanced segments;
-- delete and rebuild invalid enhanced segments;
-- delete and rebuild invalid temp files;
-- continue from the latest valid state.
-
-This is useful for long jobs where Video2X may run for many hours.
-
-## Validation
-
-The script checks files before trusting them.
-
-For each enhanced segment, it verifies:
-
-- the output file exists;
-- the file is readable by FFmpeg;
-- the duration matches the source segment closely.
-
-For the final output, it verifies:
-
-- the final file is readable;
-- the final height is 1080p;
-- audio exists if the source video had audio;
-- the final duration is close to the original video duration.
-
-If something is invalid, the script tries to rebuild only the bad part instead
-of restarting the whole project.
-
-## ETA And Progress
-
-The script shows progress during processing.
-
-Before starting, it estimates:
-
-- source video duration;
-- expected segment count;
-- rough processing time from scratch;
-- rough remaining time when resuming an existing project.
-
-During final compilation, it shows:
-
-- percentage complete;
-- current estimated segment;
-- processed video time;
-- elapsed time;
-- ETA;
-- encode speed.
-
-## Audio Handling
-
-The script first tries to preserve audio without re-encoding.
-
-If audio copy fails, it retries with AAC re-encoding.
-
-This makes the pipeline more robust when one segment has audio metadata that
-FFmpeg cannot copy cleanly.
-
-## Supported Input Formats
-
-The script scans for these video formats:
-
-```text
-.mp4
-.mkv
-.mov
-.avi
-.m4v
-.webm
-```
-
-## How To Use
-
-1. Put one or more videos in:
+Put your source video inside:
 
 ```text
 Start/To Enhance/
 ```
 
-2. Double-click:
+### 2. Launch the tool
+
+Double-click:
 
 ```text
-Start/Start_Enhance_Videos.bat
+Start_Enhance_Videos.bat
 ```
 
-3. Choose the video number shown in the console.
-4. Let the script run.
-5. The enhanced video will appear in:
+### 3. Choose a video
+
+The script detects available videos and lists them.
+
+Example:
+
+```text
+Found 3 video(s):
+1. video_a.mp4
+2. video_b.mkv
+3. video_c.webm
+```
+
+You select the target video by entering its number.
+
+Example:
+
+```text
+Choose video number: 2
+```
+
+### 4. Processing pipeline
+
+The script will then:
+
+1. create a project folder
+2. estimate duration and expected processing time
+3. split the video into **5-minute segments**
+4. upscale each segment using **Video2X + RealESRGAN**
+5. restore audio
+6. validate each generated segment
+7. compile the final enhanced video
+8. validate the final output
+
+### 5. Get the final result
+
+The finished file is saved in:
 
 ```text
 Start/Enhanced/
 ```
 
-## Stopping And Resuming
+Naming format:
 
-If you need to stop during a long Video2X segment:
+```text
+original_name_enhanced.mp4
+```
 
-1. Press `Ctrl+C`.
-2. Confirm termination if Windows asks.
-3. Run `Start_Enhance_Videos.bat` again later.
+Example:
 
-The script will check what is already valid and continue.
+```text
+Start/Enhanced/my_video_enhanced.mp4
+```
 
-## What Is Not Included In Git
+---
 
-The repository intentionally does not include:
+## Per-Video Work Folder
 
-- source videos;
-- enhanced videos;
-- split segments;
-- temp files;
-- logs;
-- FFmpeg binaries;
-- Video2X binaries.
+When processing a video such as:
 
-Those are local files and can be very large.
+```text
+sunwukong.mp4
+```
 
-## Notes
+The script creates:
 
-This project is optimized for reliability over speed. Processing can take a long
-time, especially on low-end hardware or laptop GPUs.
+```text
+Start/Enhanced/sunwukong/
+```
 
-For best results, keep the computer plugged in, avoid sleep mode, and let one
-job finish before starting another.
+Inside that folder:
+
+```text
+segments/
+enhanced/
+temp/
+logs/
+```
+
+### `segments/`
+
+Contains the split source parts:
+
+```text
+segment_0000.mp4
+segment_0001.mp4
+segment_0002.mp4
+```
+
+### `enhanced/`
+
+Contains the enhanced segment outputs:
+
+```text
+segment_0000_enhanced.mp4
+segment_0001_enhanced.mp4
+```
+
+### `temp/`
+
+Contains temporary processing files generated by Video2X and FFmpeg.
+
+### `logs/`
+
+Contains job logs such as:
+
+- `progress.log`
+- `split.log`
+- `audio_restore.log`
+- `final_merge.log`
+- `video2x_help.txt`
+
+---
+
+## Upscale Settings
+
+The current pipeline uses:
+
+- **Processor:** RealESRGAN
+- **Scale:** 2x
+- **Model:** `realesr-animevideov3`
+- **Segment length:** 300 seconds
+- **Final height:** 1080p
+- **Codec:** H.264
+- **Audio strategy:** copy first, AAC fallback
+
+---
+
+## Validation System
+
+The script validates output at every major stage.
+
+### Source segment checks
+
+- file exists
+- file is readable
+- duration is not suspicious
+
+### Enhanced segment checks
+
+- file exists
+- file is readable
+- duration matches the source segment
+
+### Final output checks
+
+- file exists
+- file is readable
+- height is 1080p
+- audio exists if the original had audio
+- duration closely matches the original
+
+### Automatic repair behavior
+
+If something is broken, the script rebuilds only what is necessary:
+
+- bad enhanced segment -> deleted and rebuilt
+- bad temp file -> deleted and rebuilt
+- missing segment -> rebuilt from split step
+- bad final output -> deleted and rebuilt
+
+---
+
+## Resume System
+
+This project is built for long-running video jobs.
+
+If the PC shuts down, Video2X crashes, or the process is stopped manually, simply run the batch file again.
+
+The script will:
+
+- skip valid segments
+- reuse valid split files
+- reuse valid enhanced files
+- delete broken files
+- continue from the last good state
+
+> It does **not** restart the entire movie unless that becomes necessary.
+
+---
+
+## ETA and Progress Display
+
+### Before processing starts
+
+The script provides a rough estimate for:
+
+- video duration
+- expected segment count
+- estimated full processing time
+- resume-aware estimate when prior work already exists
+
+### During final compile
+
+The script displays live compile progress, including:
+
+- percentage
+- current segment
+- processed video time
+- elapsed time
+- ETA
+- speed
+
+Example:
+
+```text
+Compile: 65.4% | segment segment_0012 (13/19) | video 01:00:14/01:32:08 | elapsed 00:13:20 | ETA 00:06:45 | speed 4.2x
+```
+
+---
+
+## Keyboard Controls
+
+### In the batch menus
+
+- `1`, `2`, `3`, ... -> choose a video
+- `Enter` -> confirm selection
+
+### During Video2X processing
+
+- `Space` -> pause or resume Video2X, when Video2X is active and focused
+- `q` -> abort Video2X processing
+
+### During long processing
+
+- `Ctrl + C` -> stop the batch job
+
+Recommended stop method:
+
+```text
+Ctrl + C
+Y
+```
+
+Later, simply relaunch:
+
+```text
+Start_Enhance_Videos.bat
+```
+
+The script resumes automatically.
+
+---
+
+## Why 5-Minute Segments?
+
+The pipeline uses **300-second segments** because it is much safer than processing an entire video in one pass.
+
+Benefits:
+
+- less lost work if interrupted
+- easier resume
+- easier validation
+- easier repair
+- more practical for low-end PCs
+
+---
+
+## Why Keep Work Files?
+
+The script intentionally keeps:
+
+- split segments
+- enhanced segments
+- temp files
+- logs
+
+These files are useful for:
+
+- resume support
+- debugging
+- quality checks
+- targeted repair
+- avoiding full restarts
+
+---
+
+## What Is Not Included in GitHub
+
+The repository does **not** include:
+
+- source videos
+- enhanced videos
+- split segments
+- temp files
+- logs
+- FFmpeg binaries
+- Video2X binaries
+
+Only the project structure and the batch script are intended to be pushed.
+
+---
+
+## Important Paths
+
+### Main launcher
+
+```text
+AI enhance videos/Start/Start_Enhance_Videos.bat
+```
+
+### Input videos
+
+```text
+AI enhance videos/Start/To Enhance/
+```
+
+### Final videos
+
+```text
+AI enhance videos/Start/Enhanced/
+```
+
+### Tools
+
+```text
+AI enhance videos/Start/tools/
+```
+
+---
+
+## Use Case
+
+This project is ideal for users who want a **stable, resumable, Windows-based video upscaling workflow** that can process long videos without losing progress when something goes wrong.
+
+It is especially suited for:
+
+- low-end Windows PCs
+- long enhancement jobs
+- interrupted or crash-prone workloads
+- users who value reliability more than raw speed
+
+---
+
+## Summary
+
+**AI Video Enhancer** is a resumable Windows video upscaling pipeline that uses **FFmpeg** and **Video2X** to turn low-quality videos into validated **1080p enhanced videos** while protecting long-running work from crashes, interruptions, and broken segments.
