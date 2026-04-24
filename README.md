@@ -170,7 +170,7 @@ Start/Enhanced/my_video_enhanced.mp4
 When processing a video such as:
 
 ```text
-sunwukong.mp4
+marvel.mp4
 ```
 
 The script creates:
