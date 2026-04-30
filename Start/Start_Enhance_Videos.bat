@@ -30,7 +30,14 @@ New-Item -ItemType Directory -Force -Path $ToEnhanceDir, $EnhancedRootDir, $Tool
 function Write-Header {
     Clear-Host
     Write-Host "============================================================"
+    Write-Host " __  __            _                  _____  ____"
+    Write-Host "|  \/  | __ ___  _(_)_ __ ___   ___  |___ / | ___|"
+    Write-Host "| |\/| |/ _` \ \/ / | '_ ` _ \ / _ \   |_ \ |___ \"
+    Write-Host "| |  | | (_| |>  <| | | | | | |  __/  ___) | ___) |"
+    Write-Host "|_|  |_|\__,_/_/\_\_|_| |_| |_|\___| |____/ |____/"
+    Write-Host ""
     Write-Host " AI Enhance Videos - Start Tool"
+    Write-Host " Brand: Maxime35"
     Write-Host "============================================================"
     Write-Host "Put videos here:"
     Write-Host "  $ToEnhanceDir"
@@ -173,6 +180,21 @@ function Test-ProcessedSegment([string]$SourceSegment, [string]$OutputSegment) {
     return $true
 }
 
+function Test-LockOwnerAlive([int]$ProcessId, [string]$StartedFile) {
+    if ($ProcessId -le 0) { return $false }
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if (!$process) { return $false }
+    $allowedNames = @("powershell", "pwsh", "video2x", "ffmpeg")
+    if ($allowedNames -notcontains $process.ProcessName) { return $false }
+    if (Test-Path -LiteralPath $StartedFile) {
+        try {
+            $lockStarted = [datetime]::ParseExact((Get-Content -LiteralPath $StartedFile -Raw).Trim(), "yyyy-MM-dd HH:mm:ss", [Globalization.CultureInfo]::InvariantCulture)
+            if ($process.StartTime -lt $lockStarted.AddSeconds(-30)) { return $false }
+        } catch {}
+    }
+    return $true
+}
+
 function Test-SplitSegmentsReady {
     $segments = @(Get-ChildItem -LiteralPath $script:SegmentsDir -Filter "segment_*.mp4" -ErrorAction SilentlyContinue | Sort-Object Name)
     if ($segments.Count -ne $script:ExpectedSegments) {
@@ -202,8 +224,15 @@ function Test-SplitSegmentsReady {
 
 function Remove-StaleLock([string]$LockDir) {
     if (!(Test-Path -LiteralPath $LockDir)) { return }
-    $active = Get-Process video2x, ffmpeg -ErrorAction SilentlyContinue | Where-Object { $_.WorkingSet64 -gt 10MB }
-    if ($active) { throw "Another active Video2X/FFmpeg process is running. Stop it before starting another job." }
+    $ownerPidFile = Join-Path $LockDir "owner.pid"
+    $startedFile = Join-Path $LockDir "started.txt"
+    $ownerPid = 0
+    if (Test-Path -LiteralPath $ownerPidFile) {
+        try { $ownerPid = [int]((Get-Content -LiteralPath $ownerPidFile -Raw).Trim()) } catch { $ownerPid = 0 }
+    }
+    if (Test-LockOwnerAlive $ownerPid $startedFile) {
+        throw "Another active enhancement process is running. Stop it before starting another job."
+    }
     Write-Host "Found stale lock. Removing it: $LockDir"
     Remove-Item -LiteralPath $LockDir -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -293,7 +322,14 @@ function Process-Segments {
         Write-Host "Press q inside Video2X to abort, then rerun this BAT to resume."
         if (!(Test-Path -LiteralPath $temp)) {
             & $script:Video2X -i $segment.FullName -o $temp -p $Processor -s $Scale --realesrgan-model $Model -c libx264 --pix-fmt yuv420p -e preset=veryfast -e crf=20
-            if ($LASTEXITCODE -ne 0) { throw "Video2X failed on $base." }
+            $video2xCode = $LASTEXITCODE
+            if ($video2xCode -ne 0 -and !(Test-ProcessedSegment $segment.FullName $temp)) {
+                Log "Video2X standard encode failed. Retrying with default encoder: $base"
+                Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+                & $script:Video2X -i $segment.FullName -o $temp -p $Processor -s $Scale --realesrgan-model $Model
+                $video2xCode = $LASTEXITCODE
+            }
+            if ($video2xCode -ne 0 -and !(Test-ProcessedSegment $segment.FullName $temp)) { throw "Video2X failed on $base." }
         } else { Log "Using existing valid temp output: $base" }
         if (!(Test-ProcessedSegment $segment.FullName $temp)) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue; throw "Video2X output failed validation for $base." }
         Log "Restoring source audio: $base"
@@ -339,13 +375,23 @@ function Validate-AllEnhancedSegments {
 }
 
 function Repair-And-ValidateSegments {
+    $lastError = ""
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         Log "Enhance/repair pass $attempt."
-        Process-Segments
+        try {
+            Process-Segments
+        } catch {
+            $lastError = $_.Exception.Message
+            Log "Enhance pass $attempt stopped early: $lastError"
+        }
         if (Validate-AllEnhancedSegments) { return }
-        Log "Some segments were repaired/deleted. Running another pass."
+        if ($attempt -lt 3) {
+            Log "Some segments were repaired/deleted. Running another pass."
+            Start-Sleep -Seconds 3
+        }
     }
-    throw "Segments are still invalid after 3 repair passes. Check logs before continuing."
+    if ([string]::IsNullOrWhiteSpace($lastError)) { $lastError = "unknown error" }
+    throw "Segments are still invalid after 3 repair passes. Last error: $lastError"
 }
 
 function Compile-Final {
@@ -425,6 +471,8 @@ try {
     Set-Content -LiteralPath (Join-Path $script:ProjectDir "source_video.txt") -Value $script:InputVideo -Encoding UTF8
     Remove-StaleLock $script:LockDir
     New-Item -ItemType Directory -Force -Path $script:LockDir | Out-Null
+    Set-Content -LiteralPath (Join-Path $script:LockDir "owner.pid") -Value $PID -Encoding ASCII
+    Set-Content -LiteralPath (Join-Path $script:LockDir "started.txt") -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss") -Encoding ASCII
     try {
         Log "============================================================"
         Log "Selected video: $script:InputVideo"

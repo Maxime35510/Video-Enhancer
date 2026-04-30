@@ -31,10 +31,10 @@ It keeps work files, validates every step, and resumes automatically after crash
 
 ```text
 Start/
-    ├── Start_Enhance_Videos.bat
-    ├── To Enhance/
-    ├── Enhanced/
-    └── tools/
+|-- Start_Enhance_Videos.bat
+|-- To Enhance/
+|-- Enhanced/
+`-- tools/
 ```
 
 ### Folder Overview
