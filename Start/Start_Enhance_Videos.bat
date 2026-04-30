@@ -239,10 +239,19 @@ function Remove-StaleLock([string]$LockDir) {
 
 function Detect-Video2X {
     Log "Checking Video2X CLI syntax."
-    $help = & $script:Video2X --help 2>&1
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $help = & $script:Video2X --help 2>&1
+        $helpExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $oldPreference
+    }
     $help | Set-Content -LiteralPath $script:Video2XHelpFile -Encoding UTF8
-    if ($LASTEXITCODE -ne 0) { throw "video2x --help failed. See $script:Video2XHelpFile" }
-    if (($help -join "`n") -notmatch "--realesrgan-model") { throw "This Video2X build does not expose --realesrgan-model." }
+    $helpText = $help -join "`n"
+    if ([string]::IsNullOrWhiteSpace($helpText)) { throw "video2x --help returned no readable output. See $script:Video2XHelpFile" }
+    if ($helpText -notmatch "--realesrgan-model") { throw "This Video2X build does not expose --realesrgan-model." }
+    if ($helpExitCode -ne 0) { Log "video2x --help returned exit code $helpExitCode, but the required CLI options were found. Continuing." }
     Log "Detected Video2X modern RealESRGAN CLI."
 }
 
